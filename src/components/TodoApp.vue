@@ -98,8 +98,12 @@
               <td>
                 <!--tag-->
                 <div class="text-center pointer">
-                  <span v-for="(showtag, index) in task.tags" :key="index"
-                    >{{ showtag }}<br
+                  <span
+                    @click="changeTagColor(idx, index)"
+                    v-for="(showtag, idx) in task.tags"
+                    :key="idx"
+                    :style="{ color: colors[task.tags[idx].color] }"
+                    >{{ showtag.tag }}<br
                   /></span>
                 </div>
               </td>
@@ -140,6 +144,8 @@ export default {
       allStatus: ["To-do", "In-progress", "Done"],
       viewState: "ALL",
       tasks: [],
+      colors: ["white", "red", "green", "yellow"],
+      colorCount: 4,
     };
   },
   mounted() {
@@ -153,26 +159,51 @@ export default {
     });
   },
   methods: {
-    addTag() {},
     submitTask() {
       if (this.task.length === 0) {
         return;
       }
       if (this.editingTask !== null) {
-        this.tasks[this.editingTask].name = this.task;
-        this.tasks[this.editingTask].tags = this.tags.split(" ");
-        this.tasks[this.editingTask].date = this.date.replaceAll("-", "/");
+        let editing = this.tasks[this.editingTask];
+        editing.name = this.task;
+        let newTagObj = [];
+        let tagObj = editing.tags;
+        this.tags.split(" ").forEach(function (tagKey) {
+          let tagIdx = tagObj.findIndex((ele) => ele.tag === tagKey);
+          if (tagIdx === -1) {
+            newTagObj.push({
+              tag: tagKey,
+              color: 0,
+            });
+          } else {
+            newTagObj.push({
+              tag: tagKey,
+              color: editing.tags[tagIdx].color,
+            });
+          }
+        });
+
+        editing.tags = newTagObj;
+        editing.date = this.date.replaceAll("-", "/");
         this.editingTask = null;
       } else {
         if (this.tasks.find((x) => x.name === this.task) != undefined) {
           alert("You had this thing in your list already.");
           return;
         }
-
-        let newTag = this.tags;
+        let newTag = this.tags.split(" ");
+        let tagObj = [];
+        newTag.forEach((checkTag) => {
+          if (tagObj.find((existTag) => existTag.tag == checkTag) === undefined) {
+            tagObj.push({
+              tag: checkTag,
+              color: 0,
+            });
+          }
+        });
         this.tasks.push({
           name: this.task,
-          tags: newTag.split(" "),
+          tags: tagObj,
           status: "To-do",
           date: this.date.replaceAll("-", "/"),
         });
@@ -187,10 +218,22 @@ export default {
       this.save();
     },
     editTask(index) {
+      let editing = this.tasks[index];
+      let tagSTR = editing.tags
+        .map(function (element) {
+          return element.tag;
+        })
+        .join(" ");
       this.task = this.tasks[index].name;
-      this.tags = this.tasks[index].tags.join(" ");
+      this.tags = tagSTR;
       this.date = this.tasks[index].date.replaceAll("/", "-");
       this.editingTask = index;
+    },
+    changeTagColor(tagidx, index) {
+      console.log(tagidx, index);
+      let assignTag = this.tasks[index].tags[tagidx];
+      let newColor = (assignTag.color + 1) % this.colorCount;
+      assignTag.color = newColor;
     },
     changeStatus(index) {
       let newIndex = this.allStatus.indexOf(this.tasks[index].status);
