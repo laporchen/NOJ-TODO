@@ -42,12 +42,32 @@
     <!-- filter-->
     <div class="mt-5 d-flex justify-content-center">
       <div class="d-flex" style="width: 80%">
-        <button @click="showAll" style="width: 15%" class="btn btn-warning">All</button>
-        <button @click="showTodo" style="width: 15%" class="btn btn-warning">Todo</button>
-        <button @click="showInProgress" style="width: 15%" class="btn btn-warning">
+        <button
+          @click="showStatus('ALL')"
+          style="width: 15%"
+          class="btn btn-warning"
+        >
+          All
+        </button>
+        <button
+          @click="showStatus('TODO')"
+          style="width: 15%"
+          class="btn btn-warning"
+        >
+          Todo
+        </button>
+        <button
+          @click="showStatus('INPROGRESS')"
+          style="width: 15%"
+          class="btn btn-warning"
+        >
           In-progress
         </button>
-        <button @click="save" style="width: 15%" class="ms-auto btn btn-warning">
+        <button
+          @click="save"
+          style="width: 15%"
+          class="ms-auto btn btn-warning"
+        >
           Save
         </button>
       </div>
@@ -80,7 +100,9 @@
               </td>
               <td>
                 <!--name-->
-                <span :class="{ taskDone: task.status === 'Done' }">{{ task.name }}</span>
+                <span :class="{ taskDone: task.status === 'Done' }">{{
+                  task.name
+                }}</span>
               </td>
               <td>
                 <!--status-->
@@ -129,6 +151,9 @@
 
 <script>
 import axios from "axios";
+//import Tag from "../tagClass"
+import Task from "../taskClass";
+import * as TAG from "../tagClass";
 export default {
   name: "Todo",
   props: {
@@ -150,63 +175,39 @@ export default {
   },
   mounted() {
     const that = this;
-    axios.get("http://127.0.0.1:8080/get_data", {}).then(function (response) {
+    axios.get("http://127.0.0.1:8081/get_data", {}).then(function (response) {
       if (response.data.status == "success") {
+        //console.log(response.data.response);
         response.data.response.forEach((element) => {
-          that.tasks.push(element);
+          that.tasks.push(Task.from(element));
         });
       }
     });
   },
   methods: {
+    submitEdit() {
+      let editing = this.tasks[this.editingTask];
+      editing.changeName(this.task);
+      editing.changeDate(this.date);
+      editing.updateTag(TAG.newTags(this.tags));
+      this.editingTask = null;
+    },
     submitTask() {
       if (this.task.length === 0) {
         return;
       }
       if (this.editingTask !== null) {
-        let editing = this.tasks[this.editingTask];
-        editing.name = this.task;
-        let newTagObj = [];
-        let tagObj = editing.tags;
-        this.tags.split(" ").forEach(function (tagKey) {
-          let tagIdx = tagObj.findIndex((ele) => ele.tag === tagKey);
-          if (tagIdx === -1) {
-            newTagObj.push({
-              tag: tagKey,
-              color: 0,
-            });
-          } else {
-            newTagObj.push({
-              tag: tagKey,
-              color: editing.tags[tagIdx].color,
-            });
-          }
-        });
-
-        editing.tags = newTagObj;
-        editing.date = this.date.replaceAll("-", "/");
-        this.editingTask = null;
+        this.submitEdit();
       } else {
         if (this.tasks.find((x) => x.name === this.task) != undefined) {
           alert("You had this thing in your list already.");
           return;
         }
-        let newTag = this.tags.split(" ");
-        let tagObj = [];
-        newTag.forEach((checkTag) => {
-          if (tagObj.find((existTag) => existTag.tag == checkTag) === undefined) {
-            tagObj.push({
-              tag: checkTag,
-              color: 0,
-            });
-          }
-        });
-        this.tasks.push({
-          name: this.task,
-          tags: tagObj,
-          status: "To-do",
-          date: this.date.replaceAll("-", "/"),
-        });
+        let tag = TAG.newTags(this.tags);
+        //console.log(tag);
+        this.tasks.push(
+          new Task(this.task, this.date.replaceAll("-", "/"), tag, "To-do")
+        );
       }
       this.task = "";
       this.tags = "";
@@ -215,6 +216,7 @@ export default {
     },
     deleteTask(index) {
       this.tasks.splice(index, 1);
+      this.editingTask = null;
       this.save();
     },
     editTask(index) {
@@ -230,35 +232,23 @@ export default {
       this.editingTask = index;
     },
     changeTagColor(tagidx, index) {
-      console.log(tagidx, index);
-      let assignTag = this.tasks[index].tags[tagidx];
-      let newColor = (assignTag.color + 1) % this.colorCount;
-      assignTag.color = newColor;
+      this.tasks[index].tags[tagidx].changeColor(this.colorCount);
+      this.save();
     },
     changeStatus(index) {
       let newIndex = this.allStatus.indexOf(this.tasks[index].status);
       this.tasks[index].status = this.allStatus[(newIndex + 1) % 3];
     },
-    showAll() {
-      this.viewState = "ALL";
+    showStatus(stat) {
+      this.viewState = stat;
     },
-    showTodo() {
-      this.viewState = "TODO";
-    },
-    showInProgress() {
-      this.viewState = "INPROGRESS";
-    },
-    save() {
-      axios
-        .post("http://127.0.0.1:8080/savetoserver", {
-          info: JSON.stringify(this.tasks),
-        })
-        .then(function (response) {
-          var status = response.data.status;
-          if (status != "success") {
-            alert("Error!");
-          }
-        });
+    async save() {
+      let response = await axios.post("http://127.0.0.1:8081/savetoserver", {
+        info: JSON.stringify(this.tasks),
+      });
+      if (response?.data?.status !== "success") {
+        throw new Error();
+      }
     },
   },
 };
